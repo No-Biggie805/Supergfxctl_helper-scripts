@@ -1,3 +1,7 @@
+#!/usr/bin/env bash
+# sgfx-manager - interactive helper to inspect/control NVIDIA services/processes and run sgfx switch scripts
+# Place this file in ~/bin and make executable: chmod +x ~/bin/sgfx-manager
+# It runs privileged commands via sudo (you'll be prompted for your password when needed).
 
 set -u
 
@@ -69,22 +73,13 @@ list_nvidia_users() {
   echo
 }
 
-<<<<<<<<< Temporary merge branch 1
-=========
 # Updated confirm: type 'yes' to continue, press Enter (or type 'no') to cancel
->>>>>>>>> Temporary merge branch 2
 confirm() {
   # usage: confirm "Prompt message"
   local prompt="${1:-Proceed?}"
   if [[ "${AUTO_YES:-0}" = "1" ]]; then
     return 0
   fi
-<<<<<<<<< Temporary merge branch 1
-  read -rp "$prompt [y/N]: " ans
-  case "$ans" in
-    [Yy]|[Yy][Ee][Ss]) return 0 ;;
-    *) return 1 ;;
-=========
   echo
   # explicit instruction: type 'yes' to continue; Enter (or 'no') cancels
   read -rp "$prompt
@@ -92,7 +87,6 @@ Type 'yes' to continue, or press Enter to cancel: " ans
   case "${ans,,}" in   # lowercase compare
     yes|y) return 0 ;;
     *)    return 1 ;;
->>>>>>>>> Temporary merge branch 2
   esac
 }
 
@@ -148,8 +142,6 @@ kill_nvidia_processes() {
   fi
 }
 
-<<<<<<<<< Temporary merge branch 1
-=========
 # NEW: pre-check before switching to Integrated or Vfio
 precheck_before_switch() {
   # returns 0 = OK to proceed, 1 = user chose to abort
@@ -220,7 +212,6 @@ EOF
   return 0
 }
 
->>>>>>>>> Temporary merge branch 2
 try_run_script() {
   # run a helper script from ~/bin if present
   local name="$1"
@@ -293,19 +284,6 @@ while true; do
       kill_nvidia_processes
       ;;
     6)
-<<<<<<<<< Temporary merge branch 1
-      if confirm "Run sgfx-switch-integrated (if present)?"; then
-        try_run_script "sgfx-switch-integrated"
-      else
-        note "Cancelled."
-      fi
-      ;;
-    7)
-      if confirm "Run sgfx-switch-vfio (if present)?"; then
-        try_run_script "sgfx-switch-vfio"
-      else
-        note "Cancelled."
-=========
       # pre-check before attempting Integrated
 	      if precheck_before_switch; then
         if confirm "Run sgfx-switch-integrated (if present)?"; then
@@ -323,7 +301,6 @@ while true; do
         else
           note "Cancelled."
         fi
->>>>>>>>> Temporary merge branch 2
       fi
       ;;
     8)
