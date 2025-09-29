@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# sgfx-switch-integrated
+# Switch to Integrated (iGPU only) using supergfxctl with checks.
+
+set -euo pipefail
+
+SUPERGF="$(
+  command -v supergfxctl || true
+)"
+if [[ -z "$SUPERGF" ]]; then
+  echo "supergfxctl not found in PATH. Install switcheroo-control/supergfxd."
+  exit 2
+fi
+
+# Use the exact case that supergfxctl expects:
+MODE="Integrated"
+
+echo "Requesting switch to $MODE..."
+
+# warn user processes using nvidia devices
+echo "Checking for processes using /dev/nvidia*..."
+BUSY="$(sudo fuser -v /dev/nvidia* 2>/dev/null || true)"
+if [[ -n "$BUSY" ]]; then
+  echo "Processes still using NVIDIA device (they may block switching):"
+  echo "$BUSY"
+  echo
+  echo "If these are GUI processes, try logging out or closing GPU-using apps."
+fi
+
+# Try the live switch:
+if sudo "$SUPERGF" -m "$MODE"; then
+  echo "supergfxctl: requested Integrated mode successfully."
+  exit 0
+fi
+
+echo "Live mode switch failed. Attempting to unload NVIDIA DRM/driver modules as fallback..."
+
+# Try to remove nvidia modules gracefully (will fail if still in use)
+sudo modprobe -r nvidia-drm nvidia-modeset nvidia 2>/dev/null || true
+sleep 1
+
+echo "Retrying supergfxctl..."
+if sudo "$SUPERGF" -m "$MODE"; then
+  echo "Succeeded after removing modules (or modules were not blocking)."
+  exit 0
+fi
+
+echo "Still failed. Show kernel module status and current fuser output:"
+lsmod | grep -E 'nvidia|nvidia_drm|nvidia_modeset' || true
+sudo fuser -v /dev/nvidia* 2>/dev/null || true
+
+echo "If switching still fails, try logging out of your session or rebooting."
+exit 1
