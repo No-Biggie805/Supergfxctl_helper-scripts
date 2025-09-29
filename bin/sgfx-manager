@@ -73,16 +73,20 @@ list_nvidia_users() {
   echo
 }
 
+# Updated confirm: type 'yes' to continue, press Enter (or type 'no') to cancel
 confirm() {
   # usage: confirm "Prompt message"
   local prompt="${1:-Proceed?}"
   if [[ "${AUTO_YES:-0}" = "1" ]]; then
     return 0
   fi
-  read -rp "$prompt [y/N]: " ans
-  case "$ans" in
-    [Yy]|[Yy][Ee][Ss]) return 0 ;;
-    *) return 1 ;;
+  echo
+  # explicit instruction: type 'yes' to continue; Enter (or 'no') cancels
+  read -rp "$prompt
+Type 'yes' to continue, or press Enter to cancel: " ans
+  case "${ans,,}" in   # lowercase compare
+    yes|y) return 0 ;;
+    *)    return 1 ;;
   esac
 }
 
@@ -136,6 +140,76 @@ kill_nvidia_processes() {
   else
     note "Aborted killing processes."
   fi
+}
+
+# NEW: pre-check before switching to Integrated or Vfio
+precheck_before_switch() {
+  # returns 0 = OK to proceed, 1 = user chose to abort
+  local services_found=0
+  local pids
+  echo
+  note "Pre-check: looking for nvidia daemons and processes holding /dev/nvidia*..."
+
+  # services
+  for svc in nvidia-persistenced nvidia-powerd; do
+    if service_exists "$svc"; then
+      if service_active "$svc"; then
+        printf "  %-20s : %s\n" "$svc" "ACTIVE"
+        services_found=1
+      else
+        printf "  %-20s : %s\n" "$svc" "inactive"
+      fi
+    else
+      printf "  %-20s : %s\n" "$svc" "not present"
+    fi
+  done
+
+  # processes
+  pids="$(sudo fuser -v /dev/nvidia* 2>/dev/null | awk 'NR>1 {print $2}' | tr '\n' ' ' || true)"
+  if [[ -n "$pids" ]]; then
+    echo
+    echo "Processes currently holding /dev/nvidia*: $pids"
+    ps -o pid,user,comm,args -p $pids 2>/dev/null || true
+  else
+    echo
+    echo "No processes currently hold /dev/nvidia*."
+  fi
+
+  # if anything found, show recommended commands and ask to continue
+  if [[ $services_found -ne 0 || -n "$pids" ]]; then
+    cat <<'EOF'
+
+WARNING: active NVIDIA daemons or user processes were detected.
+If you proceed without stopping them the switch may fail or crash applications.
+
+Recommended commands to stop the services (run as your user with sudo):
+
+  sudo systemctl stop nvidia-persistenced.service nvidia-powerd.service
+  sudo systemctl disable --now nvidia-persistenced.service nvidia-powerd.service
+  sudo systemctl mask nvidia-persistenced.service nvidia-powerd.service
+
+Recommended to stop processes holding the GPU (example, run as your user with sudo):
+  sudo fuser -v /dev/nvidia*          # shows PIDs
+  sudo kill -TERM <pid>               # polite termination
+  sleep 2
+  sudo kill -KILL <pid>               # force kill if still present
+
+If you prefer the script to stop/mask services and kill processes automatically,
+run the sgfx-switch scripts with their --auto option (or set AUTO_YES=1 for this manager).
+
+EOF
+
+    if confirm "Do you want to continue the switch anyway?"; then
+      info "User chose to continue despite active services/processes."
+      return 0
+    else
+      note "Aborting switch — please stop/mask services and/or kill processes first."
+      return 1
+    fi
+  fi
+
+  # nothing found — ok to proceed
+  return 0
 }
 
 try_run_script() {
@@ -210,17 +284,23 @@ while true; do
       kill_nvidia_processes
       ;;
     6)
-      if confirm "Run sgfx-switch-integrated (if present)?"; then
-        try_run_script "sgfx-switch-integrated"
-      else
-        note "Cancelled."
+      # pre-check before attempting Integrated
+	      if precheck_before_switch; then
+        if confirm "Run sgfx-switch-integrated (if present)?"; then
+          try_run_script "sgfx-switch-integrated"
+        else
+          note "Cancelled."
+        fi
       fi
       ;;
     7)
-      if confirm "Run sgfx-switch-vfio (if present)?"; then
-        try_run_script "sgfx-switch-vfio"
-      else
-        note "Cancelled."
+      # pre-check before attempting Vfio
+      if precheck_before_switch; then
+        if confirm "Run sgfx-switch-vfio (if present)?"; then
+          try_run_script "sgfx-switch-vfio"
+        else
+          note "Cancelled."
+        fi
       fi
       ;;
     8)
