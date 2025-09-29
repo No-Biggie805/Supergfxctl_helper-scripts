@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# sgfx-switch-hybrid
+# Switch to Hybrid mode (usual PRIME offload) with checks.
+
+set -euo pipefail
+
+SUPERGF="$(command -v supergfxctl || true)"
+if [[ -z "$SUPERGF" ]]; then
+  echo "supergfxctl not found in PATH. Install switcheroo-control/supergfxd."
+  exit 2
+fi
+
+MODE="Hybrid"
+echo "Requesting switch to $MODE..."
+
+if sudo "$SUPERGF" -m "$MODE"; then
+  echo "Hybrid requested successfully."
+  # re-load nvidia drm module as fallback
+  sudo modprobe nvidia-drm 2>/dev/null || true
+  echo "Done. If displays don't come up, try restarting the compositor or display manager."
+  exit 0
+fi
+
+echo "Failed to switch to Hybrid. Showing diagnostics..."
+sudo fuser -v /dev/nvidia* 2>/dev/null || true
+lsmod | grep -E 'nvidia|nvidia_drm|nvidia_modeset' || true
+
+exit 1

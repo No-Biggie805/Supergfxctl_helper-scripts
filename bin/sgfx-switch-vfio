@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# sgfx-switch-vfio
+# Safer sequence to hand dGPU to VFIO: switch to Integrated first, then to Vfio.
+# This script tries to be non-destructive; it prints helpful diagnostics if it fails.
+
+set -euo pipefail
+
+SUPERGF="$(command -v supergfxctl || true)"
+if [[ -z "$SUPERGF" ]]; then
+  echo "supergfxctl not found in PATH. Install switcheroo-control/supergfxd."
+  exit 2
+fi
+
+# Modes (case-sensitive)
+MODE_I="Integrated"
+MODE_V="Vfio"
+
+echo "==> Step 1: switch to $MODE_I (so dGPU is unused)"
+if sudo "$SUPERGF" -m "$MODE_I"; then
+  echo "Integrated requested. Giving a moment for devices to settle..."
+else
+  echo "Failed to request Integrated mode. Showing /dev/nvidia* users:"
+  sudo fuser -v /dev/nvidia* 2>/dev/null || true
+  echo "Aborting VFIO preparation."
+  exit 1
+fi
+
+# Wait a short while for the kernel to quiesce and the device to drop
+sleep 2
+
+# Optional: try to remove NVIDIA modules that might block unbinding
+echo "Attempting to remove NVIDIA kernel modules (if safe)..."
+sudo modprobe -r nvidia-drm nvidia-modeset nvidia 2>/dev/null || true
+sleep 1
+
+echo "==> Step 2: switch to $MODE_V (bind to VFIO)"
+if sudo "$SUPERGF" -m "$MODE_V"; then
+  echo "Vfio mode requested successfully."
+  # show the current vfio binding for verification
+  echo "Checking VFIO-bound devices (lspci -k shows drivers):"
+  lspci -k | sed -n '1,120p'
+  exit 0
+fi
+
+echo "Failed to request Vfio mode. Showing diagnostics:"
+sudo fuser -v /dev/nvidia* 2>/dev/null || true
+lsmod | grep -E 'vfio|nvidia|nvidia_drm|nvidia_modeset' || true
+
+echo "If the GPU still won't go to VFIO, rebooting often clears driver state."
+exit 1
