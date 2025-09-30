@@ -20,5 +20,13 @@ Now to respond to what was the issue all along comes now the solutions that it a
 - Show inscript-activity logs;
 
 Usage:
-Step 1: select option 1 to list the active nvidia systemd daemons
-Step 2: 
+- Run the script ./sgfx-manager
+  
+Step 1: Select options 1 and 2 to list the active nvidia systemd daemons and used processes respectfully;
+
+Step 2: Select options 6 and 7 to switch to Integrated or vfio respectfully. 
+To switch back to hybrid from vfio needs to go through integrated first, then back to hybrid, enable the services using option 4.
+
+Explaining the fundaments of the script:
+
+The script is designed so with own knowlage and limitations to switch across modes as effective as i could made it to be, so not only were added accessible process monitor as well option to terminate those. But the one failsafe inconvinience that is to have to type "yes" so to prevent the user as much as possible from messing the switch up. 
