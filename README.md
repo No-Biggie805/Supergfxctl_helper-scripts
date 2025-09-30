@@ -1,5 +1,8 @@
-Gfx_Helper:
+**WIP**
 
+
+Gfx_Helper:
+ 
 Gfx helper is a helper script made to facilitate switching between modes for your dedicated gpu on you laptop(mainly nvidia gpus). The idea of this script came up, for all these years i've been finding that switching to
 vfio specially was cumbersome, initially being the nightmare of having to leave the gpu stuck to the vfio ids, and with the introduction of supergfxctl and its adoption from asus only to all laptops really helping out 
 with switching modes still was cumbersome, having to still log out to switch to integrated and reboot in order to go to vfio after integrated.
